@@ -2,6 +2,9 @@
 
 ---
 
+[Português](https://github.com/Paow4n/ZECA-v2/blob/main/README_PT.md)
+[Español](https://github.com/Paow4n/ZECA-v2/blob/main/README_ES.md)
+
 # ZECA
 
 **ZECA** is a JavaScript-based project that connects to the Zcash blockchain to monitor incoming shielded transactions.
