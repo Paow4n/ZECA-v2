@@ -110,17 +110,17 @@ nj-cli build --release
 4. **Return to the main project folder and clone the ZECA repository.**
 
 ```bash
-cd ..
+cd ../..
 
 ```
 
 ```bash
-git clone https://github.com/Paow4n/ZECA
+git clone https://github.com/Paow4n/ZECA-v2.git
 
 ```
 
 ```bash
-cd ZECA
+cd ZECA-v2
 
 ```
 
