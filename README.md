@@ -2,6 +2,9 @@
 
 ---
 
+[Português](https://github.com/Paow4n/ZECA-v2/blob/main/README_PT.md)
+[Español](https://github.com/Paow4n/ZECA-v2/blob/main/README_ES.md)
+
 # ZECA
 
 **ZECA** is a JavaScript-based project that connects to the Zcash blockchain to monitor incoming shielded transactions.
@@ -107,17 +110,17 @@ nj-cli build --release
 4. **Return to the main project folder and clone the ZECA repository.**
 
 ```bash
-cd ..
+cd ../..
 
 ```
 
 ```bash
-git clone https://github.com/Paow4n/ZECA
+git clone https://github.com/Paow4n/ZECA-v2.git
 
 ```
 
 ```bash
-cd ZECA
+cd ZECA-v2
 
 ```
 

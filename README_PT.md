@@ -98,18 +98,18 @@ cd zcash-walletd/js
 nj-cli build --release
 ```
     
-4. **Retorne para a pasta do projeto e clone o repostório do ZECA.**
+4. **Retorne para a pasta do projeto e clone o repositório do ZECA.**
     
 ```bash
-cd ..
+cd ../..
 ```
     
 ```bash
-git clone https://github.com/Paow4n/ZECA
+git clone https://github.com/Paow4n/ZECA-v2.git
 ```
     
 ```bash
-cd ZECA
+cd ZECA-v2
 ```
     
 5. Copie os arquivos compilados para a raiz do ZECA.
