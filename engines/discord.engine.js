@@ -54,6 +54,9 @@ class DiscordEngine extends Engine {
                     .setColor(0xf4b728)
                     .setTitle('Send a Shielded Zcash memo')
                     .setDescription('Please send your message through the **Shielded Zcash address** below. The Memo will be replicated on all supported platforms.')
+                    .addFields([
+            { name: 'Unified Address', value: `\`\`\`${this.address}\`\`\`` }
+        ])
                     .setImage('attachment://zec-address.png');
 
                 await interaction.reply({
