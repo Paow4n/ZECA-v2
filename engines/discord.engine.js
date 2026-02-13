@@ -2,14 +2,13 @@ const Engine = require('./engine.interface');
 const { Client, GatewayIntentBits, EmbedBuilder, AttachmentBuilder, Events, REST, Routes } = require('discord.js');
 const QRCode = require('qrcode');
 
-// ALTERAÇÃO: Carrega as variáveis do arquivo .env
+// Load .env variables.
 require('dotenv').config();
 
 class DiscordEngine extends Engine {
     constructor(cfg) {
         super(cfg);
-        // ALTERAÇÃO: Define a visibilidade global baseada no .env
-        // Se DEFAULT_SHOW_VALUE for 'true', exibe o valor. Caso contrário, oculta.
+       // Set global visibility based on .env configuration.
         this.showValueGlobal = process.env.DEFAULT_SHOW_VALUE === 'true';
     }
 
@@ -23,7 +22,7 @@ class DiscordEngine extends Engine {
 
         this.address = ua;
 
-        // Registro do comando /address
+        // Register /address command.
         this.client.once(Events.ClientReady, async () => {
             const rest = new REST({ version: '10' }).setToken(this.cfg.token);
             const commands = [
@@ -88,10 +87,10 @@ class DiscordEngine extends Engine {
     async post(message, value, txid) {
         if (!this.channel) throw new Error('Discord engine not started');
 
-        // ALTERAÇÃO: O valor é exibido ou ocultado com base na variável global do .env
+        // Conditionally show/hide value via .env configuration.
         const valueDisplay = this.showValueGlobal 
             ? `${value / 10 ** 8} ZEC` 
-            : '🔒 *Valor Oculto*';
+            : '🔒 *Hidden Value*';
 
         const msgEmbed = new EmbedBuilder()
             .setColor(0xf4b728)
@@ -104,7 +103,7 @@ class DiscordEngine extends Engine {
 
         await this.channel.send({ embeds: [msgEmbed] });
         
-        // Log no terminal para monitoramento
+        // Log status to console for monitoring.
         console.log(`[POST] TXID: ${txid} | Exibindo valor: ${this.showValueGlobal}`);
     }
 }
