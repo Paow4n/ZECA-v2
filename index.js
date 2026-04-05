@@ -1,17 +1,18 @@
-const fs = require('fs'); // Módulo para log
+const fs = require('fs');
 const DiscordEngine = require('./engines/discord.engine');
-const native = require('./dist/');
-const { Transaction } = require ('./db');
+const { Transaction, init } = require('./db');
+const { ZkoolClient } = require('./zkool.client');
 
 require('dotenv').config();
 
-// .env configuration
-const POLL_INTERVAL = parseInt(process.env.POLL_INTERVAL) || 60; //
-const LWD_SERVERS = process.env.LWD_URL.split(','); // Server .env
-let currentServerIndex = 0;
-let syncLock = false;
+// Configurações .env
+const POLL_INTERVAL = parseInt(process.env.POLL_INTERVAL) || 60;
+const GQL_URL = 'http://zkool-service:8000/graphql'; // URL interna do Docker
+const VK = process.env.VK;
+const BIRTH_HEIGHT = parseInt(process.env.BIRTH_HEIGHT) || 0;
+const SHOW_VALUE = process.env.DEFAULT_SHOW_VALUE === 'true';
 
-// Engine Initialization (Engines)
+// Inicialização dos Engines (Discord)
 const engines = [
     new DiscordEngine({
         token: process.env.DISCORD_BOT_TOKEN,
@@ -19,12 +20,12 @@ const engines = [
     }),
 ];
 
-// Auxiliary function for recording logs with timestamps
+// Função auxiliar para logs
 function writeLog(message) {
     const timestamp = new Date().toLocaleString();
     const logEntry = `[${timestamp}] ${message}\n`;
-    fs.appendFileSync('bot.log', logEntry); // Record in bot.log
-    console.log(message); // Show in terminal too
+    fs.appendFileSync('bot.log', logEntry);
+    console.log(message);
 }
 
 async function startAll(ua) {
@@ -32,7 +33,7 @@ async function startAll(ua) {
         try {
             await e.start(ua);
         } catch (err) {
-            writeLog(`[ENGINE ERROR] Fail to initialize engine: ${err.message}`);
+            writeLog(`[ENGINE ERROR] Falha ao inicializar engine: ${err.message}`);
         }
     }
 }
@@ -41,94 +42,99 @@ async function broadcast(message, value, txid) {
     await Promise.allSettled(engines.map(e => e.post(message, value, txid)));
 }
 
-// APP entrypoint
+// APP Entrypoint
 (async () => {
     try {
-        writeLog("--- Starting ZCASH Bot ---");
-        
-        // Initializes the native library.
-        native.init();
+        writeLog("--- Iniciando ZCASH Bot via SDK Sanitizado ---");
 
-        // Get default address    
-        const addrStr = native.getAddresses();
-        const addrJson = JSON.parse(addrStr);
+        // Inicializa o banco de dados local
+        await init();
 
-        let ua = "";
-        if(addrJson[0] && addrJson[0].address) {
-            ua = addrJson[0].address;
-        } else {
-            throw new Error("No addresses found in the wallet.");
+        if (!VK) throw new Error("A variável VK (UFVK) não foi definida no .env!");
+
+        // Instancia o Client do Zkool
+        const zkool = new ZkoolClient(GQL_URL);
+
+        // O init() faz o ping na API e já liga o sincronizador no background!
+        await zkool.init();
+        writeLog("[INFO] Motor ZkoolClient inicializado. Sincronização em background ativada.");
+
+        try {
+            // Tenta criar a conta. Se já existir (erro), ele segue o baile.
+            await zkool.createNewAccount(VK, 0, BIRTH_HEIGHT, "ZecaMonitor");
+            writeLog("[INFO] Conta UFVK configurada com sucesso.");
+        } catch (err) {
+            writeLog(`[INFO] Conta já existente no banco de dados da API.`);
         }
-        
-        // Initialize engines (Discord)
+
+        // Garante que o SDK sempre olhe para a sua conta principal (ID 1)
+        zkool.accountId = 1;
+
+        // Pega o endereço de forma limpa usando o SDK
+        const addressData = await zkool.getAddress();
+        let ua = addressData?.ua; 
+        if (!ua) throw new Error("Nenhum endereço retornado pelo Zkool.");
+
+        writeLog(`[INFO] Endereço UA detectado: ${ua.substring(0, 10)}...`);
+
+        // Inicializa o Discord
         await startAll(ua);
 
-        // Create timer to look for transactions
+        let isProcessing = false;
+
+        // Ciclo principal de monitoramento e postagem
         setInterval(async () => {
-            if(syncLock) {
-                writeLog("[SYNC] Synchronization process already underway.");
-                return;
-            }
+            if (isProcessing) return;
+            isProcessing = true;
 
-            // Internal security block to prevent the bot from crashing.
             try {
-                syncLock = true;
-                writeLog(`[SYNC] Checking blocks on the server.: ${LWD_SERVERS[currentServerIndex]}`);
+                // Pega a lista simplificada de transações
+                const txs = await zkool.getTransactions();
+                if (!txs || txs.length === 0) return;
 
-                // Synchronization (may cause a broken pipe if the network fails)
-                const scan = await native.requestScan();
+                const latestDbHeight = await Transaction.max('height') || 0;
                 
-                const txnsStr = native.getTransfers(0, [0]);
-                const txnsJson = JSON.parse(txnsStr);                
-                
-                // Get latest known transaction in the database
-                const latest = await Transaction.max('height') || 0;
+                // Filtra para manter apenas o que é novidade para o nosso banco de dados
+                const newTxns = txs.filter(tx => tx.height > latestDbHeight);
 
-                // Keep only new transactions
-                const newTxns = txnsJson.in.filter(tx => tx.height > latest);
-                if (newTxns.length === 0) {
-                    writeLog("[SYNC] No new transactions.");
-                    return;
-                }
+                if (newTxns.length === 0) return;
 
-                writeLog(`[SYNC] ${newTxns.length} Transactions received.`);
+                writeLog(`[SYNC] ${newTxns.length} novas transações confirmadas prontas para leitura.`);
 
-                // Add new transactions into the database
-                const rows = newTxns.map(t => ({
-                    txid: t.txid,
-                    value: Number(t.amount) || 0,
-                    height: Number(t.height),
-                    memo: t.note ?? null,
-                }));
+                // Processa cada transação nova para buscar a mensagem (memo)
+                for (const tx of newTxns) {
+                    const details = await zkool.getTransactionInfo(zkool.accountId, tx.txid);
+                    
+                    let txMemo = null;
+                    if (details && details.notes && details.notes.length > 0 && details.notes[0].memo) {
+                        txMemo = details.notes[0].memo;
+                    }
 
-                await Transaction.bulkCreate(rows, { ignoreDuplicates: true });
+                    // Salva no banco de dados local do Bot
+                    await Transaction.create({
+                        txid: tx.txid,
+                        value: Number(tx.value) || 0,
+                        height: Number(tx.height),
+                        memo: txMemo
+                    });
 
-                // Send the memo to the platform engines
-                for (const t of newTxns) {
-                    if (t.note && String(t.note).trim().length > 0) {
-                        await broadcast(t.note, t.amount, t.txid);
-                        writeLog(`[BROADCAST] TXID posted: ${t.txid}`);
+                    // Envia para o Discord (Broadcast) apenas se tiver mensagem válida
+                    if (txMemo && String(txMemo).trim().length > 0) {
+                        const valueToPost = SHOW_VALUE ? tx.value : "Oculto";
+                        await broadcast(txMemo, valueToPost, tx.txid);
+                        writeLog(`[BROADCAST] TXID postado no Discord: ${tx.txid}`);
                     }
                 }
-            // Error handling -> Tratamento de erros. 
+
             } catch (innerErr) {
-                // Checks if innerErr exists and if it has a 'message' property.
-                const errorMsg = (innerErr && innerErr.message) ? innerErr.message : "Unknown error or failure in the native library.";
-                
-                writeLog(`[ERROR] Failure during the cycle: ${errorMsg}`);
-                
-                // We now securely verify if it's a connection error.
-                if (errorMsg.includes('pipe') || errorMsg.includes('connection') || errorMsg.includes('stream')) {
-                    rotateServer();
-                }
+                writeLog(`[ERROR] Falha na varredura de transações: ${innerErr.message}`);
             } finally {
-                // This ensures that, even if there is an error, the bot will try again in the next minute.
-                syncLock = false; 
+                isProcessing = false;
             }
-            
         }, POLL_INTERVAL * 1000);
-    } catch(err) {
-        writeLog(`[FATAL ERROR] Critical error during startup: ${err.message}`);
+
+    } catch (err) {
+        writeLog(`[FATAL ERROR] Erro crítico no startup: ${err.message}`);
         process.exit(1);
     }
 })();

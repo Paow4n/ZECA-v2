@@ -1,5 +1,5 @@
 const Engine = require('./engine.interface');
-const { Client, GatewayIntentBits, EmbedBuilder, AttachmentBuilder, Events, REST, Routes } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, AttachmentBuilder, Events, REST, Routes, MessageFlags } = require('discord.js');
 const QRCode = require('qrcode');
 
 // Load .env variables.
@@ -8,7 +8,7 @@ require('dotenv').config();
 class DiscordEngine extends Engine {
     constructor(cfg) {
         super(cfg);
-       // Set global visibility based on .env configuration.
+        // Set global visibility based on .env configuration.
         this.showValueGlobal = process.env.DEFAULT_SHOW_VALUE === 'true';
     }
 
@@ -53,15 +53,16 @@ class DiscordEngine extends Engine {
                     .setColor(0xf4b728)
                     .setTitle('Send a Shielded Zcash memo')
                     .setDescription('Please send your message through the **Shielded Zcash address** below. The Memo will be replicated on all supported platforms.')
+                    // O endereço continua no Embed por estética...
                     .addFields([
-            { name: 'Unified Address', value: this.address }
-        ])
+                        { name: 'Unified Address', value: this.address }
+                    ])
                     .setImage('attachment://zec-address.png');
 
                 await interaction.reply({
                     embeds: [embed],
                     files: [file],
-                    ephemeral: true, 
+                    flags: [MessageFlags.Ephemeral], 
                 });
             } catch (err) {
                 console.error('Slash command error', err);
@@ -87,9 +88,9 @@ class DiscordEngine extends Engine {
     async post(message, value, txid) {
         if (!this.channel) throw new Error('Discord engine not started');
 
-        // Conditionally show/hide value via .env configuration.
-        const valueDisplay = this.showValueGlobal 
-            ? `${value / 10 ** 8} ZEC` 
+        // Blindagem contra NaN: Verifica se o .env permite e se o valor é um número real
+        const valueDisplay = (this.showValueGlobal && !isNaN(value))
+            ? `${Number(value) / 10 ** 8} ZEC` 
             : '🔒 *Hidden Value*';
 
         const msgEmbed = new EmbedBuilder()

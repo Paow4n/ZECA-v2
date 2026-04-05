@@ -1,31 +1,35 @@
-# Build output
+Dockerfile
+docker-compose.yml
+.dockerignore
+**/docker/
+
+**/target/
+Cargo.lock          # Opcional: Alguns preferem manter para travar versões
+
+node_modules/
+package-lock.json   # Opcional: Recomendo subir para garantir as mesmas versões na VPS
 dist/
 build/
 
-#Node.js dependencies
-node_modules/
-
-# Logs
+*.log
 npm-debug.log*
-yarn-deug.log*
-yarn-error.log*
-pnpm-debug.log*
+yarn-debug.log*
 bot.log*
 
-# Environment
-.env 
+.env
 .env.local
+.env.*
+*.pem
+*.key
 
-#Databases
+*.db                
+*.sqlite* 
 zec-wallet*
 database.sqlite
 
-#IDE / Editor settings
 .vscode/
 .idea/
-
-#OS
-
 .DS_Store
-Thumbs.db 
+Thumbs.db
 
+zkool-graphql/

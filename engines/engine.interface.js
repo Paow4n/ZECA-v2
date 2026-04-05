@@ -8,10 +8,11 @@ class Engine {
     async start(ua) {}
 
     /** Post message
-     *  @param {string} message
+     * @param {string} message
+     * @param {number|string} value
+     * @param {string} txid
      */
-    async post(message) {}
+    async post(message, value, txid) {}
 }
 
 module.exports = Engine;
-
