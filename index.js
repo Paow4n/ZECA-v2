@@ -7,7 +7,7 @@ require('dotenv').config();
 
 // Configurações .env
 const POLL_INTERVAL = parseInt(process.env.POLL_INTERVAL) || 60;
-const GQL_URL = 'http://zkool-service:8000/graphql'; // URL interna do Docker
+const GQL_URL = process.env.GQL_URL || 'http://127.0.0.1:8000/graphql';
 const VK = process.env.VK;
 const BIRTH_HEIGHT = parseInt(process.env.BIRTH_HEIGHT) || 0;
 const SHOW_VALUE = process.env.DEFAULT_SHOW_VALUE === 'true';
@@ -45,7 +45,7 @@ async function broadcast(message, value, txid) {
 // APP Entrypoint
 (async () => {
     try {
-        writeLog("--- Iniciando ZCASH Bot via SDK Sanitizado ---");
+        writeLog("--- Iniciando ZECA BOT ---");
 
         // Inicializa o banco de dados local
         await init();
@@ -67,7 +67,6 @@ async function broadcast(message, value, txid) {
             writeLog(`[INFO] Conta já existente no banco de dados da API.`);
         }
 
-        // Garante que o SDK sempre olhe para a sua conta principal (ID 1)
         zkool.accountId = 1;
 
         // Pega o endereço de forma limpa usando o SDK
@@ -79,6 +78,22 @@ async function broadcast(message, value, txid) {
 
         // Inicializa o Discord
         await startAll(ua);
+
+        try {
+            const serverHeight = await zkool.getServerHeight();
+            const accHeight = await zkool.getWalletHeight();
+            const faltam = serverHeight - accHeight;
+            const progresso = ((accHeight / serverHeight) * 100).toFixed(2);
+
+            writeLog(`[SYNC STATUS] Carteira: ${accHeight} | Rede: ${serverHeight}`);
+            writeLog(`[SYNC STATUS] Progresso: ${progresso}% | Faltam: ${faltam} blocos.`);
+            
+            if (faltam > 100) {
+                writeLog("[!] Aviso: O bot ainda está longe do topo da rede. Transações recentes podem demorar a aparecer.");
+            }
+        } catch (syncErr) {
+            writeLog(`[WARN] Não foi possível ler o progresso de sincronização: ${syncErr.message}`);
+        }
 
         let isProcessing = false;
 
